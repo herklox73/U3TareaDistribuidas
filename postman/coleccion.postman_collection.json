@@ -1,0 +1,240 @@
+{
+  "info": {
+    "name": "Portal de compras - Flujo distribuido seguro",
+    "description": "Coleccion de pruebas para el backend del portal de compras (Northwind). Cubre autenticacion, roles, revocacion de tokens y manejo centralizado de errores.\n\nVariables requeridas:\n- baseUrl: http://localhost:3001\n- customerToken: JWT de un usuario con rol customer (copiar desde el navegador tras iniciar sesion)\n- adminToken: JWT de un usuario con rol admin\n- expiredToken: un JWT valido pero con fecha de expiracion pasada (se puede generar cambiando JWT_EXPIRES_IN a un valor muy corto, por ejemplo 5s, iniciar sesion y esperar)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "customerToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "expiredToken", "value": "" },
+    { "key": "revokedToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Salud del servidor",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "02 - Perfil autenticado (customer)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+        "url": "{{baseUrl}}/auth/me"
+      }
+    },
+    {
+      "name": "03 - Catalogo de productos (publico autenticado)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+        "url": "{{baseUrl}}/products"
+      }
+    },
+    {
+      "name": "04 - Compra exitosa (customer)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customerToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"quantity\": 2 }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/orders"
+      }
+    },
+    {
+      "name": "05 - Mis ordenes (customer)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+        "url": "{{baseUrl}}/orders/mine"
+      }
+    },
+    {
+      "name": "06 - Rechazo: sin token (401)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/orders/mine"
+      }
+    },
+    {
+      "name": "07 - Rechazo: token invalido (401)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer token.invalido.manipulado" }],
+        "url": "{{baseUrl}}/orders/mine"
+      }
+    },
+    {
+      "name": "08 - Rechazo: token vencido (401)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{expiredToken}}" }],
+        "url": "{{baseUrl}}/orders/mine"
+      }
+    },
+    {
+      "name": "09 - Rechazo: cliente en ruta administrativa (403)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+        "url": "{{baseUrl}}/products/all"
+      }
+    },
+    {
+      "name": "10 - Rechazo: admin en ruta exclusiva de customer (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"quantity\": 1 }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/orders"
+      }
+    },
+    {
+      "name": "11 - Cierre de sesion (logout)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{revokedToken}}" }],
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "12 - Rechazo: token revocado reutilizado (401)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{revokedToken}}" }],
+        "url": "{{baseUrl}}/orders/mine"
+      }
+    },
+    {
+      "name": "13 - Admin: listar productos (activos e inactivos)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/products/all"
+      }
+    },
+    {
+      "name": "14 - Admin: crear producto",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product_name\": \"Producto de prueba\",\n  \"unit_price\": 10.5,\n  \"units_in_stock\": 20,\n  \"category_id\": 1\n}"
+        },
+        "url": "{{baseUrl}}/products"
+      }
+    },
+    {
+      "name": "15 - Admin: ajustar stock (cantidad invalida -> 400)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"delta\": 0\n}"
+        },
+        "url": "{{baseUrl}}/products/1/stock"
+      }
+    },
+    {
+      "name": "16 - Admin: desactivar producto (soft delete)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/products/1"
+      }
+    },
+    {
+      "name": "17 - Admin: reactivar producto",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/products/1/reactivate"
+      }
+    },
+    {
+      "name": "18 - Admin: listar todas las ordenes",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/orders"
+      }
+    },
+    {
+      "name": "19 - Admin: detalle de una orden",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/orders/1/details"
+      }
+    },
+    {
+      "name": "20 - Admin: registro de eventos (logs)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": "{{baseUrl}}/logs?limit=50"
+      }
+    },
+    {
+      "name": "21 - Compra: cantidad invalida (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customerToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"quantity\": 0 }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/orders"
+      }
+    },
+    {
+      "name": "22 - Compra: stock insuficiente (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customerToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"quantity\": 999999 }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/orders"
+      }
+    },
+    {
+      "name": "23 - Producto inexistente (404)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+        "url": "{{baseUrl}}/products/999999"
+      }
+    }
+  ]
+}
